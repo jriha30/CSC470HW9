@@ -1,6 +1,3 @@
-;; The first three lines of this file were inserted by DrRacket. They record metadata
-;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-advanced-reader.ss" "lang")((modname HW9) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 (define resolve
   (lambda (varName env)
     (cond
@@ -124,14 +121,15 @@
       ((eq? (car parsed-no-code) 'call-exp)
          (run-parsed-function-code
         (cadr parsed-no-code)
-        (complete-env
+        (extend-env
          (cdr (cadr (cadr parsed-no-code)))
          (map (lambda (packet) (run-parsed-code (car packet) (cadr packet))) (map (lambda (x) (list x env)) (caddr parsed-no-code)))
          env))))))
 
-(define env '((age 21) (a 7) (b 5) (c 23)))
+(define env '(((age 21) (a 7) (b 5) (c 23))))
 
 (define sample-no-code '(call (function (a) (call (function () a))) 5))
+(define sample-no-code2 '(call (function (x) x) a))
 (define parsed-no-code (no-parser sample-no-code))
 (display parsed-no-code)
 (run-parsed-code parsed-no-code env)
