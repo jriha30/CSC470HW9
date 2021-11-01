@@ -2,8 +2,26 @@
   (lambda (varName env)
     (cond
       ((null? env) #f)
+      ((or (eq? (car env) 'temp) (eq? (car env) 'global)) (resolve varName (cdr env)))
       ((eq? varName (caar env)) (cadar env))
       (else (resolve varName (cdr env))))))
+
+(define resolve2
+  (lambda (varName env)
+    (cond
+      ((null? env) #f)
+      ((not (eq? (resolve varName (car env)) #f)) (resolve varName (car env)))
+      (else (resolve2 varName (cdr env))))))
+
+
+(define burn-to-global
+  (lambda (env)
+    (if (eq? (caar env) 'global) env
+        (burn-to-global (cdr env)))))
+
+
+
+
 
 (define extend-env
   (lambda (lo-vars lo-vals env)
@@ -13,10 +31,34 @@
                         (cdr lo-vals)
                         (cons (list (car lo-vars) (car lo-vals)) env))))))
 
+(define extend-env2
+  (lambda (lo-vars lo-vals env)
+    (cons (reverse (create-env lo-vars lo-vals)) env)))
+
+
+(define env-let-get-var-names
+  (lambda (lst)
+    (if (null? lst)
+        '()
+        (cons (caar lst) (env-let-get-var-names (cdr lst))))))
+
+(define env-let-get-var-values
+  (lambda (lst)
+    (if (null? lst)
+        '()
+        (cons (cadar lst) (env-let-get-var-values (cdr lst))))))
+
+(define env-let-mapper
+  (lambda (lst)
+    (list (env-let-get-var-names lst)
+          (env-let-get-var-values lst))))
+
+
+
 (define create-env
   (lambda (lo-vars lo-vals)
     (cond
-      ((null? lo-vars) '())
+      ((null? lo-vars) '(temp))
       (else (cons (list (car lo-vars) (car lo-vals)) (create-env (cdr lo-vars) (cdr lo-vals)))))))
 
 (define merge-env
@@ -107,29 +149,39 @@
       ((eq? (car parsed-no-code) 'num-lit-exp)
        (cadr parsed-no-code))
       ((eq? (car parsed-no-code) 'var-exp)
-       (resolve (cadr parsed-no-code) (car (reverse env))))
+       (resolve2 (cadr parsed-no-code) env))
+      ((eq? (car parsed-no-code) 'let-exp)
+       (let* ((var-2-lists (env-let-mapper (cadr parsed-no-code)))
+              (new-env (extend-env (car var-2-lists) (cadr var-2-lists) env))
+              (body (caddr parsed-no-code)))
+         (run-parsed-code body new-env))) 
       ((eq? (car parsed-no-code) 'math-exp)
        (do-mathy-stuff-toaster
         (cadr parsed-no-code)
         (run-parsed-code (caddr parsed-no-code) env)
         (run-parsed-code (cadddr parsed-no-code) env)))
       ((eq? (car parsed-no-code) 'ask-exp)
-       (run-parsed-boolean-code parsed-no-code env))
-      ((eq? (car parsed-no-code) 'let-exp)
-       (run-parsed-code (caddr parsed-no-code)
-                        (extend-env-with-two-list (cadr parsed-no-code) env)))
-      ((eq? (car parsed-no-code) 'call-exp)
+       (if (run-parsed-boolean-code (cadr parsed-no-code) env) 
+           (run-parsed-code (caddr parsed-no-code) env)
+           (run-parsed-code (cadddr parsed-no-code) env)))
+      (else
          (run-parsed-function-code
         (cadr parsed-no-code)
-        (extend-env
+        (extend-env2
          (cdr (cadr (cadr parsed-no-code)))
          (map (lambda (packet) (run-parsed-code (car packet) (cadr packet))) (map (lambda (x) (list x env)) (caddr parsed-no-code)))
-         env))))))
+         (burn-to-global env)))))))
 
-(define env '(((age 21) (a 7) (b 5) (c 23))))
+(define env '((global (age 21) (a 7) (b 5) (c 23))))
 
-(define sample-no-code '(call (function (a) (call (function () a))) 5))
+(define env2 '((temp (a 5)) (global (age 21) (a 7) (b 5) (c 23))))
+
+;((temp (a 5)) (global (age 21) (a 7) (b 5) (c 23)))
+
+
+
+(define sample-no-code '(call (function (a) (call (function (r) a) a)) 5))
 (define sample-no-code2 '(call (function (x) x) a))
 (define parsed-no-code (no-parser sample-no-code))
-(display parsed-no-code)
+;(display parsed-no-code)
 (run-parsed-code parsed-no-code env)
